@@ -1,0 +1,251 @@
+---
+title: "mjon238 Stats 326 Assignment 3 Q1"
+author: "mjon238"
+date: "13/05/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F)
+library(fpp3)
+library(tidyverse)
+```
+
+
+# Problem 1: ETS Modelling
+
+First load the data
+```{r, cache = T}
+direct <- "Current Uni Stuff/Stats 326/Assignment 3/"
+df <- read_csv("productivity.csv")%>%
+  as_tsibble(index = Year)
+```
+
+
+
+## Part 1: Plot the Data
+```{r, cache = T}
+df%>%
+  autoplot()+
+  labs(title = "Labour Productivity for Primary Industries in New Zealand",
+       subtitle = "1978 - 2021",
+       y = "Productivity (Index)")
+```
+
+* There is a linear increasing trend in labour productivity for primary industries in New Zealand.
+* The steepest increase is from 1978 to 1998, afterwards productivity continues to increase, however at a slightly slower rate.
+* There are cyclical fluctuation sin labour productivity, with a number of decreases, notably after 1998 and 2010.
+* Productivity does pick-up after these cyclical decreases.
+
+
+## Part 2
+
+### 1) Fit the Two Models
+```{r, cache = T}
+dfTrain <- df%>%
+  filter(Year < 2017)
+
+modelLinear <- dfTrain%>%
+  model(Linear = ETS(Productivity ~ error("A") + trend("A") + season("N")))
+
+modelDamped <- dfTrain%>%
+  model(Linear = ETS(Productivity ~ error("A") + trend("Ad") + season("N")))
+```
+
+### 2) Intrepret Model Parameters and Compare AICc
+```{r, cache = T}
+report(modelLinear)
+
+beta_star = 0.0001000043/0.4889942 
+beta_star
+```
+
+Parameters in Holts Linear Trend Method
+
+* $\alpha = 0.489$, which means the level equation is an approximately 50/50 split of the previous observations level and the observations before.
+* $\beta^{*} = 0.0002 \approx 0$, which means the slope is just the previous estimate of the slope ($b_t = b_{t-1}$).
+
+
+```{r, cache = T}
+report(modelDamped)
+beta_star = 0.0001001014/0.5939802 
+beta_star
+```
+
+Parameters in Holts Linear Damped Trend Method
+
+* $\alpha = 0.594$, which means the level equation has slightly more weighting to the previous observation than the older past.
+* $\beta^{*} = 0.0002 \approx 0$, which means the slope is just the previous estimate of the slope ($b_t = \phi b_{t-1}$).
+* $\phi = 0.98$, this is the maximum value $\phi$ can take, which indicates that the trend is approximately linear (as opposed to a decaying slope).
+
+### 3) Compare AICc
+
+Holts Linear Trend Method has an AICc of 535.55 and Holts Linear Damped Trend Method has an AICc of 540.27. 
+Holts Linear Trend Method has a slightly better fit to the training data, but not by much.
+
+
+## Part 3
+
+### 1) Create Forecasts
+```{r, cache = T}
+fcLinear <- modelLinear%>%
+  forecast(h = 5)
+
+fcDamped <- modelDamped%>%
+  forecast(h = 5)
+```
+
+
+
+### 2) Create Plot of Point Forecats
+```{r, cache = T}
+#Create data frame, overlay point forecasts on original data
+forecasts <- data.frame(Year = c(1978:2021),
+                   fcDamped = c(rep(NA,39), fcDamped$.mean),
+                   fcLinear = c(rep(NA,39), fcLinear$.mean),
+                   Actual = df$Productivity)%>%
+  pivot_longer(cols = c(Actual, fcLinear, fcDamped),
+               names_to = "Data Type",
+               values_to = "Productivity")%>%
+  mutate(`Data Type` = factor(`Data Type`, levels = c("Actual", "fcLinear", "fcDamped")))
+
+#Create Plots
+ggplot(aes(x = Year, y = Productivity, colour = `Data Type`),
+       data = forecasts) + 
+  geom_line(size = 0.6)+
+  labs(y = "Productivity (Index)",
+       title = "Labour Productivity for Primary Industries in New Zealand",
+       subtitle = "Actual and Forecasts (1978 - 2021)")+
+  scale_color_manual(labels = c("Actual", "Linear Method", "Damped Method"), 
+                     values= c("black", "chocolate2", "dodgerblue3"))
+```
+
+
+### 3) Compute Measures of Accuracy
+```{r, cache = T}
+#Holts Linear Trend Method
+accuracy(fcLinear, df)
+
+#Holts Linear Damped Trend Method
+accuracy(fcDamped, df)
+```
+
+Holts Linear Damped Trend provides better forecasts. It has significantly lower MAE and RMSE.
+It is also fits the data more appropriately.
+
+
+### 4) Prediction Intervals
+
+```{r, cache = T}
+fc22 <- modelDamped%>%
+  forecast(h = 6)
+
+fc22[6,]%>%
+  hilo(level = 95)
+```
+
+The 95% prediction interval for the year 2022 with the Holt Linear Damped Model is (3285.73, 4230.18).
+
+The model estimates there is a 95% probability the New Zealand Labour Productivity for Primary Industries Index in 2022 will be between 3285.73 and 4230.18.
+
+
+### 5) Discuss how you would reduce forecast uncertainty
+
+The formula for the prediction interval in with additive errors is $y_{T+h|T} \pm z_{\alpha/2}\times \hat{\sigma_{h}}$. The primary way to reduce the prediction intervals would be to reduce the forecast standard deviation ($\hat{\sigma_h}$) and therefore the variance, $\sigma^2_h$.
+
+The formula for the variance is as follows: 
+
+$$ \sigma^2_{h} = \sigma^2 [1 + \alpha^2(h-1) + 
+\frac{\beta \phi h}{(1-\phi)^2} \{ 2\alpha(1-\phi) + \beta \phi \} - \frac{\beta \phi(1-\phi^h)}{(1-\phi)^2} \{2\alpha(1-\phi)^2 + \beta \phi (1+2\phi - \phi^h) \}
+]$$
+
+
+We can reduce $\sigma^2_h$ by:
+
+* Reducing h, we can do this by increasing our training data set to include observations up-to 2021.
+
+* Reducing $\alpha$,  this will increase weighting on the older past.
+
+* Reducing $\beta = \beta^* \alpha$, this can be done by reducing alpha or reducing $\beta^*$, ie. have the slope change less often.
+
+
+$\phi$ is a less clear variable.
+
+
+
+
+# Problem 2: ARIMA Modelling
+
+## Part 1: Determining an Appropriate ARIMA Model
+
+### 1) Construct a KPSS Unit Root Test
+
+Our null hypothesis is H0: The data is stationary.
+
+Firstly, with no differencing:
+```{r, cache = T}
+dfTrain%>%
+  features(`Productivity`, unitroot_kpss)
+```
+
+We have a p-value of 0.01, therefore we reject the null hypothesis, the data is non-stationary.
+
+Using differencing of order 1, with 1 lag and the same null hypothesis.
+```{r, cache = T}
+dfTrain%>%
+  features(difference(Productivity, lag = 1), unitroot_kpss)
+```
+
+We have a p-value of 0.1, therefore we accept the null hypothesis, the data is stationary.
+
+### 2) Ploting ACF and PACF
+
+```{r, cache = T}
+dfTrain2 <- dfTrain%>%
+  mutate(diff = difference(Productivity, lag  = 1))
+
+dfTrain2%>%
+  ACF(diff)%>%
+  autoplot() + 
+  labs(title = "ACF Plot for Differenced Data With Order 1, Lag 1",
+       subtitle = "Labour Productivity for Primary Industries in New Zealand",
+       y = "ACF")
+```
+
+The ACF Plot is good, the differences series acts like a white-noise series.
+
+```{r, cache = T}
+dfTrain2%>%
+  PACF(diff)%>%
+  autoplot() + 
+  labs(title = "PACF Plot for Differenced Data With Order 1, Lag 1",
+       subtitle = "Labour Productivity for Primary Industries in New Zealand",
+       y = "PACF")
+```
+
+The second lag is approximately a white noise series, there is one observation outside of the "blue-line" interval, however it is only marginally outside.
+
+
+### 3) Suggested ARIMA Model
+
+I would fit an ARIMA (p,d,q) model with the following parameters:
+
+* $p = $, because 
+* $d = 1$, because we achieved stationarity with one difference.
+* $q = $, because 
+
+
+
+
+## Part 2: ARIMA Model Fitting
+
+```{r}
+#Fit Models
+fitARIMA <- dfTrain%>%
+  model(stepwise = ARIMA(Productivity, stepwise = TRUE),
+        search = ARIMA(Productivity, stepwise = FALSE))
+
+fitARIMA
+```
+
+The stepwise selected model and the non-stepwise (search) selected model are identical, ARIMA(0,1,1) with a drift.
