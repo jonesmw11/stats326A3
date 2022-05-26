@@ -34,7 +34,7 @@ df%>%
 
 * There is a linear increasing trend in labour productivity for primary industries in New Zealand.
 * The steepest increase is from 1978 to 1998, afterwards productivity continues to increase, however at a slightly slower rate.
-* There are cyclical fluctuation sin labour productivity, with a number of decreases, notably after 1998 and 2010.
+* There are cyclical fluctuations in labour productivity, with a number of decreases, notably after 1998 and 2010.
 * Productivity does pick-up after these cyclical decreases.
 
 
@@ -212,7 +212,7 @@ dfTrain2%>%
        y = "ACF")
 ```
 
-The ACF Plot is good, the differences series acts like a white-noise series.
+The ACF Plot tells us the differences series acts like a white-noise series, with no significant lags.
 
 ```{r, cache = T}
 dfTrain2%>%
@@ -223,37 +223,43 @@ dfTrain2%>%
        y = "PACF")
 ```
 
-The second lag is approximately a white noise series, there is one observation outside of the "blue-line" interval, however it is only marginally outside.
+The PACF Plot has a significant lag at lag 2, but the rest are insignificant.
 
 
 ### 3) Suggested ARIMA Model
 
-I would fit an ARIMA (p,d,q) model with the following parameters:
+Firstly the ACF Plot, has no significant lags, therefore our q-term will be 0.
+Secondly the PACF Plot, has a significant second lag, therefore our p-term will be 2.
+We are using difference data, so our d term is equal to 1.
 
-* $p = ?$, because 
-* $d = 1$, because we achieved stationarity with one difference.
-* $q = ?$, because 
+Hence, I would fit an ARIMA (2,1,0).
 
 
-In backshift notation this is: $(1-B)y_t = ...$
+In backshift notation this is: $(1-\phi_1B - \phi_2 B^2)(1-B)y_t = c + \varepsilon_t$
+
+where $c$ is a constant and $\varepsilon_t$ is a white noise series.
+
 ## Part 2: ARIMA Model Fitting
 
 ```{r}
 #Fit Models
 fitARIMA <- dfTrain%>%
-  model(stepwise = ARIMA(Productivity, stepwise = TRUE),
+  model(arima210 = ARIMA(Productivity ~ pdq(2,1,0)),
+        stepwise = ARIMA(Productivity, stepwise = TRUE),
         search = ARIMA(Productivity, stepwise = FALSE))
 
 fitARIMA
+
+glance(fitARIMA)%>%
+  arrange(AICc)%>%
+  select(.model:BIC)
 ```
 
-The stepwise selected model and the non-stepwise (search) selected model are identical, ARIMA(0,1,1) with a drift.
+The stepwise selected model and the non-stepwise (search) selected model are identical, ARIMA(0,1,1) with a drift. This model has the lowest AICc.
 
 In backshift notation this is: $(1-B)y_t = c + (1 + \theta_1B)\varepsilon_t$
 
-Where $c$ is a constant.
-
-
+Where $c$ is a constant and $\varepsilon_t$ is a white noise series.
 
 ## Part 3: Model Checking and Forecasting
 
@@ -268,9 +274,11 @@ bestARIMA%>%
 
 The residuals look, overall, very good
 
-* They are normally distributed
+* They are normally distributed.
 * Have approximately zero mean and constant variance.
-* They resemble a white-noise series
+* They resemble a white-noise series.
+
+I have no concerns about the model, we can accept the ARIMA(0,1,1) as our final model.
 
 
 ### 2) Forecasts
