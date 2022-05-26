@@ -2,8 +2,8 @@
 library(fpp3)
 library(tidyverse)
 
-direct <- "Current Uni Stuff/Stats 326/Assignment 3/"
-df <- read_csv(paste0(direct,"productivity.csv"))%>%
+# direct <- "Current Uni Stuff/Stats 326/Assignment 3/"
+df <- read_csv("productivity.csv")%>%
   as_tsibble(index = Year)
 
 
@@ -56,3 +56,26 @@ glance(fitARIMA)%>%
 fitARIMA
 dfTrain%>%
   autoplot(Productivity%>%difference(1))
+
+#Need to S
+
+
+
+#Part 3
+bestARIMA <- dfTrain%>%
+  model(ARIMA(Productivity ~ pdq(0,1,1)))
+
+bestARIMA%>%
+  gg_tsresiduals()
+
+
+fc <- bestARIMA%>%
+  forecast(h = 5)
+
+fc
+
+fc%>%
+  autoplot(df, level = c(90, 99)) + 
+  labs(title = "5 Year Forecast Using an ARIMA(0,1,1) with Drift",
+       subtitle = "Labour Productivity for Primary Industries in New Zealand",
+       y = "Index")

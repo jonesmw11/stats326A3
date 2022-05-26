@@ -1,5 +1,5 @@
 ---
-title: "mjon238 Stats 326 Assignment 3 Q1"
+title: "mjon238 Stats 326 Assignment 3"
 author: "mjon238"
 date: "13/05/2022"
 output: pdf_document
@@ -198,7 +198,7 @@ dfTrain%>%
 
 We have a p-value of 0.1, therefore we accept the null hypothesis, the data is stationary.
 
-### 2) Ploting ACF and PACF
+### 2) Plotting ACF and PACF
 
 ```{r, cache = T}
 dfTrain2 <- dfTrain%>%
@@ -230,13 +230,12 @@ The second lag is approximately a white noise series, there is one observation o
 
 I would fit an ARIMA (p,d,q) model with the following parameters:
 
-* $p = $, because 
+* $p = ?$, because 
 * $d = 1$, because we achieved stationarity with one difference.
-* $q = $, because 
+* $q = ?$, because 
 
 
-
-
+In backshift notation this is: $(1-B)y_t = ...$
 ## Part 2: ARIMA Model Fitting
 
 ```{r}
@@ -249,3 +248,46 @@ fitARIMA
 ```
 
 The stepwise selected model and the non-stepwise (search) selected model are identical, ARIMA(0,1,1) with a drift.
+
+In backshift notation this is: $(1-B)y_t = c + (1 + \theta_1B)\varepsilon_t$
+
+Where $c$ is a constant.
+
+
+
+## Part 3: Model Checking and Forecasting
+
+### 1) Residuals
+```{r}
+bestARIMA <- dfTrain%>%
+  model(ARIMA(Productivity ~ pdq(0,1,1)))
+
+bestARIMA%>%
+  gg_tsresiduals()
+```
+
+The residuals look, overall, very good
+
+* They are normally distributed
+* Have approximately zero mean and constant variance.
+* They resemble a white-noise series
+
+
+### 2) Forecasts
+```{r}
+fc <- bestARIMA%>%
+  forecast(h = 5)
+
+fc
+```
+
+
+### 3) Plotting
+```{r}
+fc%>%
+  autoplot(df, level = c(90, 99)) + 
+  labs(title = "5 Year Forecast Using an ARIMA(0,1,1) with Drift",
+       subtitle = "Labour Productivity for Primary Industries in New Zealand",
+       y = "Productivity (Index)")
+```
+
