@@ -47,7 +47,7 @@ dfTrain2%>%
 fitARIMA <- dfTrain%>%
   model(stepwise = ARIMA(Productivity, stepwise = TRUE),
         search = ARIMA(Productivity, stepwise = FALSE),
-        arima = ARIMA(Productivity ~ pdq(1,1,2)))
+        arima210 = ARIMA(Productivity ~ pdq(2,1,0)))
 
 glance(fitARIMA)%>%
   arrange(AICc)%>%
@@ -60,11 +60,14 @@ dfTrain%>%
 #Need to S
 
 
-
+model2 <- dfTrain%>%
+  model(ARIMA(Productivity ~ pdq(2,1,0)))
 #Part 3
 bestARIMA <- dfTrain%>%
   model(ARIMA(Productivity ~ pdq(0,1,1)))
 
+
+report(model2)
 bestARIMA%>%
   gg_tsresiduals()
 
@@ -79,3 +82,12 @@ fc%>%
   labs(title = "5 Year Forecast Using an ARIMA(0,1,1) with Drift",
        subtitle = "Labour Productivity for Primary Industries in New Zealand",
        y = "Index")
+
+
+
+
+dfTrain%>%
+  ACF(difference(Productivity, lag = 1))%>%
+  autoplot()
+
+df
